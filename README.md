@@ -7,6 +7,7 @@ A python library for working with the IBM Silverpop API.  It handles all of the 
 ## Example Usage
 ```python
 import time
+import arrow
 from silverweasel.client import SilverClient
 
 client = SilverClient(5, "username", "password")
