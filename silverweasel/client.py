@@ -22,14 +22,14 @@ class FixedSliverPoopWSDL:
 
 class SilverClient:
     def __init__(self, pod, username, password, timezone='America/New_York'):
-        self.pod = pod
+        self.pod = str(pod)
         self.username = username
         self.password = password
         self.timezone = timezone
         self.login()
 
     def login(self):
-        wsdl = "http://api%i.ibmmarketingcloud.com/SoapApi?wsdl" % self.pod
+        wsdl = "http://api%s.ibmmarketingcloud.com/SoapApi?wsdl" % self.pod
         transport = Transport(cache=FixedSliverPoopWSDL())
         self.client = Client(wsdl, transport=transport)
         self.headers = None
@@ -50,8 +50,8 @@ class SilverClient:
         """
         startdate and enddate should be an Arrow object
         """
-        enddate = enddate if enddate else arrow.now(self.timezone)
         startdate = startdate.format('MM/DD/YYYY HH:mm:ss')
+        enddate = enddate if enddate else arrow.now(self.timezone)
         enddate = enddate.format('MM/DD/YYYY HH:mm:ss')
         response = self._call('GetSentMailingsForList',
                               LIST_ID=list_id,
@@ -66,6 +66,10 @@ class SilverClient:
     def get_contact_lists(self):
         # per https://ibm.co/2optFbt - list type 18 is contact lists
         return self.get_lists(18)
+
+    def get_databases(self):
+        # per https://ibm.co/2optFbt - list type 0 is databases
+        return self.get_lists(0)
 
     def get_lists(self, list_type):
         """
@@ -86,11 +90,22 @@ class SilverClient:
             item['LAST_MODIFIED'] = arrow.get(item['LAST_MODIFIED'], dformat)
         return clists
 
-    def export_list(self, list_id):
-        response = self._call('ExportList',
-                              LIST_ID=list_id,
-                              EXPORT_TYPE="ALL",
-                              EXPORT_FORMAT="CSV")
+    def export_list(self, list_id, startdate=None, enddate=None, export="ALL"):
+        """
+        startdate and enddate should be arrow.Arrow objects for time, or None.
+        export should be one of ALL, OPT_IN, OPT_OUT, or UNDELIVERABLE
+        """
+        kwargs = {
+            'LIST_ID': list_id,
+            'EXPORT_TYPE': export,
+            'FILE_ENCODING': 'UTF-8',
+            'EXPORT_FORMAT': 'CSV'
+        }
+        if startdate:
+            kwargs['DATE_START'] = startdate.format('MM/DD/YYYY HH:mm:ss')
+        if enddate:
+            kwargs['DATE_END'] = enddate.format('MM/DD/YYYY HH:mm:ss')
+        response = self._call('ExportList', **kwargs)
         return ExportJob(self, response)
 
     def export_raw_list_events(self, list_id):
@@ -101,6 +116,7 @@ class SilverClient:
 
     def export_raw(self, **kwargs):
         kwargs['MOVE_TO_FTP'] = 1
+        kwargs['FILE_ENCODING'] = kwargs.get('FILE_ENCODING', 'UTF-8')
         response = self._call('RawRecipientDataExport', **kwargs)
         return ExportJob(self, response['MAILING'])
 

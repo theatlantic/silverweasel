@@ -4,7 +4,7 @@ import paramiko
 
 class SFTPClient:
     def __init__(self, pod, username, password):
-        self.host = "transfer%i.ibmmarketingcloud.com" % pod
+        self.host = "transfer%s.ibmmarketingcloud.com" % str(pod)
         self.username = username
         self.password = password
         self.client = None
