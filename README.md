@@ -46,6 +46,16 @@ with client.connect_sftp() as sftp:
     sftp.remove_job_result(job)
 ```
 
+## Logging
+This library uses the standard [Python logging library](https://docs.python.org/3/library/logging.html).  To see debut output printed to STDOUT, for instance, use:
+
+```python
+import logging
+
+log = logging.getLogger('silverweasel')
+log.setLevel(logging.DEBUG)
+log.addHandler(logging.StreamHandler())
+```
 
 ## Running Tests
 To run tests:

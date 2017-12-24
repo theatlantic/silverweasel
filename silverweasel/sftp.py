@@ -1,5 +1,10 @@
+import logging
 from zipfile import ZipFile
+from io import TextIOWrapper
+
 import paramiko
+
+logger = logging.getLogger(__name__)
 
 
 class SFTPClient:
@@ -17,6 +22,7 @@ class SFTPClient:
         self.disconnect()
 
     def connect(self):
+        logger.debug("Connecting to %s@%s", self.username, self.host)
         transport = paramiko.Transport((self.host, 22))
         transport.connect(username=self.username, password=self.password)
         self.client = paramiko.SFTPClient.from_transport(transport)
@@ -26,6 +32,7 @@ class SFTPClient:
         self.client.chdir('/download')
 
     def disconnect(self):
+        logger.debug("Disconnecting from %s", self.host)
         channel = self.client.get_channel()
         channel.get_transport().close()
         self.client = None
@@ -44,10 +51,12 @@ class SFTPClient:
         path = job.get_result_path()
         if not job.is_complete() or not self.exists(path):
             msg = "Job not completed or errored or results already deleted."
+            logger.error(msg)
             raise FileNotFoundError(msg)
         return self.remove(path)
 
     def remove(self, path):
+        logger.info("Deleting file %s on %s", path, self.host)
         return self.client.remove(path)
 
     def open_job_result(self, job, zipname=None):
@@ -55,10 +64,13 @@ class SFTPClient:
         job should be a ExportJob
         """
         if not job.is_complete():
+            logger.error("Cannot read output file from incomplete job")
             raise FileNotFoundError("Job not completed yet or errored.")
         path = job.get_result_path()
         if path.endswith('.zip'):
+            logger.info("Attempting to read remote zip %s", path)
             return RemoteZipFile(self.client, path, zipname, 'r')
+        logger.info("Attempting to read remote file %s", path)
         return RemoteFile(self.client, path, 'r')
 
 
@@ -98,7 +110,7 @@ class RemoteZipFile(RemoteFile):
             msg = "File %s not found in zip %s" % (self.fname, self.path)
             raise FileNotFoundError(msg)
         self.innerzip = self.zip.open(self.fname, self.mode)
-        return self.innerzip
+        return TextIOWrapper(self.innerzip)
 
     def __exit__(self, *args):
         self.innerzip.close()

@@ -1,11 +1,15 @@
 from os.path import basename
+import datetime
 from pkg_resources import resource_string, resource_exists
+import logging
 
 from zeep import Client
 from zeep.transports import Transport
 import arrow
 
 from silverweasel.sftp import SFTPClient
+
+logger = logging.getLogger(__name__)
 
 
 class FixedSliverPoopWSDL:
@@ -28,21 +32,49 @@ class SilverClient:
         self.timezone = timezone
         self.login()
 
+    def parse_datetime(self, parseable):
+        """
+        Turn a string (silverpop uses multiple datetime formats, we'll
+        try to figure out which one we're given) or a datetime.datetime
+        into an arrow.Arrow object for sane date interaction.
+        """
+        if isinstance(parseable, datetime.datetime):
+            return arrow.get(parseable, self.timezone)
+        if '.' in parseable:
+            # parseable is like '2017-12-21 14:00:05.0'
+            dformat = 'YYYY-MM-DD HH:mm:ss.S'
+        if len(parseable.split(' ')) == 2:
+            # parseable is like '12/21/2017 20:49:58'
+            dformat = 'MM/DD/YYYY HH:mm:ss'
+        elif len(parseable.split(' ')[0].split('/')[2]) == 2:
+            # parseable is like '12/21/17 14:00 PM
+            dformat = 'MM/DD/YY HH:mm A'
+        else:
+            # parseable is like '12/21/2017 14:00 PM'
+            dformat = 'MM/DD/YYYY HH:mm A'
+        return arrow.get(parseable, dformat, tzinfo=self.timezone)
+
     def login(self):
         wsdl = "http://api%s.ibmmarketingcloud.com/SoapApi?wsdl" % self.pod
         transport = Transport(cache=FixedSliverPoopWSDL())
         self.client = Client(wsdl, transport=transport)
         self.headers = None
+        logger.debug('Authenticating using config from %s', wsdl)
         response = self._call('Login',
                               USERNAME=self.username,
                               PASSWORD=self.password)
         self.headers = {'sessionidheader': response['SESSIONID']}
 
     def _call(self, method, **kwargs):
+        # keep it clean for debugging logs, no user/pass
+        ckwargs = kwargs.copy() if method != 'Login' else '<redacted>'
+        logger.debug('Calling SOAP function "%s" with %s', method, ckwargs)
+
         kwargs['_soapheaders'] = self.headers
         response = getattr(self.client.service, method)(**kwargs)
         if not response['SUCCESS']:
             errmsg = "Error calling %s: %s" % (method, response)
+            logger.error(errmsg)
             raise RuntimeError(errmsg)
         return response
 
@@ -67,6 +99,10 @@ class SilverClient:
         # per https://ibm.co/2optFbt - list type 18 is contact lists
         return self.get_lists(18)
 
+    def get_suppression_lists(self):
+        # per https://ibm.co/2optFbt - list type 13 is suppression lists
+        return self.get_lists(13)
+
     def get_databases(self):
         # per https://ibm.co/2optFbt - list type 0 is databases
         return self.get_lists(0)
@@ -83,11 +119,10 @@ class SilverClient:
         folders = [item for item in response['LIST'] if item['IS_FOLDER']]
         for folder in folders:
             flist.add(folder['ID'], folder['NAME'], folder['PARENT_FOLDER_ID'])
-            clists = [li for li in response['LIST'] if not li['IS_FOLDER']]
+        clists = [li for li in response['LIST'] if not li['IS_FOLDER']]
         for item in clists:
             item['FOLDER_PATH'] = flist.get_path(item['PARENT_FOLDER_ID'])
-            dformat = 'MM/DD/YY HH:mm a'
-            item['LAST_MODIFIED'] = arrow.get(item['LAST_MODIFIED'], dformat)
+            item['LAST_MODIFIED'] = self.parse_datetime(item['LAST_MODIFIED'])
         return clists
 
     def export_list(self, list_id, startdate=None, enddate=None, export="ALL"):
@@ -108,19 +143,30 @@ class SilverClient:
         response = self._call('ExportList', **kwargs)
         return ExportJob(self, response)
 
-    def export_raw_list_events(self, list_id):
-        return self.export_raw(LIST_ID=list_id)
+    def export_raw_list_events(self, list_id, startdate=None):
+        if startdate:
+            startdate = startdate.format('MM/DD/YYYY HH:mm:ss')
+        return self._export_raw(LIST_ID=list_id, EVENT_DATE_START=startdate)
 
-    def export_raw_mailing_events(self, mailing_id):
-        return self.export_raw(MAILING_ID=mailing_id)
+    def export_raw_mailing_events(self, mailing_id, startdate=None):
+        if startdate:
+            startdate = startdate.format('MM/DD/YYYY HH:mm:ss')
+        return self._export_raw(MAILING_ID=mailing_id,
+                                EVENT_DATE_START=startdate)
 
-    def export_raw(self, **kwargs):
+    def _export_raw(self, **kwargs):
+        """
+        Private - should only be called internally because all kwargs are
+        expected to be ready to be sent up as is (for instance, dates
+        formatted, etc).
+        """
         kwargs['MOVE_TO_FTP'] = 1
         kwargs['FILE_ENCODING'] = kwargs.get('FILE_ENCODING', 'UTF-8')
         response = self._call('RawRecipientDataExport', **kwargs)
         return ExportJob(self, response['MAILING'])
 
     def connect_sftp(self):
+        logger.debug("Connecting to SFTP server for pod %s", self.pod)
         return SFTPClient(self.pod, self.username, self.password)
 
 
