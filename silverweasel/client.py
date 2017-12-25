@@ -43,7 +43,7 @@ class SilverClient:
         if '.' in parseable:
             # parseable is like '2017-12-21 14:00:05.0'
             dformat = 'YYYY-MM-DD HH:mm:ss.S'
-        if len(parseable.split(' ')) == 2:
+        elif len(parseable.split(' ')) == 2:
             # parseable is like '12/21/2017 20:49:58'
             dformat = 'MM/DD/YYYY HH:mm:ss'
         elif len(parseable.split(' ')[0].split('/')[2]) == 2:
