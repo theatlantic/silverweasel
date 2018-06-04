@@ -73,6 +73,11 @@ class SilverClient:
         kwargs['_soapheaders'] = self.headers
         response = getattr(self.client.service, method)(**kwargs)
         if not response['SUCCESS']:
+            # handle expired session
+            if response['Fault']['detail']['error']['errorid'] == '145':
+                logger.warning('Restarting expired session')
+                self.login()
+                return self._call(method, **kwargs)
             errmsg = "Error calling %s: %s" % (method, response)
             logger.error(errmsg)
             raise RuntimeError(errmsg)
