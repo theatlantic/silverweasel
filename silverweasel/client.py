@@ -148,10 +148,14 @@ class SilverClient:
         response = self._call('ExportList', **kwargs)
         return ExportJob(self, response)
 
-    def export_raw_list_events(self, list_id, startdate=None):
+    def export_raw_list_events(self, list_id, startdate=None, enddate=None):
         if startdate:
             startdate = startdate.format('MM/DD/YYYY HH:mm:ss')
-        return self._export_raw(LIST_ID=list_id, EVENT_DATE_START=startdate)
+        if enddate:
+            enddate = enddate.format('MM/DD/YYYY HH:mm:ss')
+        return self._export_raw(LIST_ID=list_id,
+                                EVENT_DATE_START=startdate,
+                                EVENT_DATE_END=enddate)
 
     def export_raw_mailing_events(self, mailing_id, startdate=None,
                                   enddate=None):
