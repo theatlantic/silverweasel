@@ -153,11 +153,14 @@ class SilverClient:
             startdate = startdate.format('MM/DD/YYYY HH:mm:ss')
         return self._export_raw(LIST_ID=list_id, EVENT_DATE_START=startdate)
 
-    def export_raw_mailing_events(self, mailing_id, startdate=None):
+    def export_raw_mailing_events(self, mailing_id, startdate=None, enddate=None):
         if startdate:
             startdate = startdate.format('MM/DD/YYYY HH:mm:ss')
+        if enddate:
+            enddate = enddate.format('MM/DD/YYYY HH:mm:ss')
         return self._export_raw(MAILING_ID=mailing_id,
-                                EVENT_DATE_START=startdate)
+                                EVENT_DATE_START=startdate,
+                                EVENT_DATE_END=enddate)
 
     def _export_raw(self, **kwargs):
         """
