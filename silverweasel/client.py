@@ -1,5 +1,4 @@
 from os.path import basename
-import datetime
 from pkg_resources import resource_string, resource_exists
 import logging
 
@@ -8,6 +7,7 @@ from zeep.transports import Transport
 import arrow
 
 from silverweasel.sftp import SFTPClient
+from silverweasel.utils import parse_datetime
 
 logger = logging.getLogger(__name__)
 
@@ -33,26 +33,7 @@ class SilverClient:
         self.login()
 
     def parse_datetime(self, parseable):
-        """
-        Turn a string (silverpop uses multiple datetime formats, we'll
-        try to figure out which one we're given) or a datetime.datetime
-        into an arrow.Arrow object for sane date interaction.
-        """
-        if isinstance(parseable, datetime.datetime):
-            return arrow.get(parseable, self.timezone)
-        if '.' in parseable:
-            # parseable is like '2017-12-21 14:00:05.0'
-            dformat = 'YYYY-MM-DD HH:mm:ss.S'
-        elif len(parseable.split(' ')) == 2:
-            # parseable is like '12/21/2017 20:49:58'
-            dformat = 'MM/DD/YYYY HH:mm:ss'
-        elif len(parseable.split(' ')[0].split('/')[2]) == 2:
-            # parseable is like '12/21/17 14:00 PM
-            dformat = 'MM/DD/YY HH:mm A'
-        else:
-            # parseable is like '12/21/2017 14:00 PM'
-            dformat = 'MM/DD/YYYY HH:mm A'
-        return arrow.get(parseable, dformat, tzinfo=self.timezone)
+        return parse_datetime(parseable, self.timezone)
 
     def login(self):
         wsdl = "http://api%s.ibmmarketingcloud.com/SoapApi?wsdl" % self.pod
