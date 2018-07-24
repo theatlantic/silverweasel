@@ -64,6 +64,21 @@ class SilverClient:
             raise RuntimeError(errmsg)
         return response
 
+    def get_org_mailings(self, startdate, enddate=None):
+        """
+        startdate and enddate should be an Arrow object
+        """
+        startdate = startdate.format('MM/DD/YYYY HH:mm:ss')
+        enddate = enddate if enddate else arrow.now(self.timezone)
+        enddate = enddate.format('MM/DD/YYYY HH:mm:ss')
+        response = self._call('GetSentMailingsForOrg',
+                              DATE_START=startdate,
+                              DATE_END=enddate,
+                              SHARED=1,
+                              SENT=1,
+                              EXCLUDE_ZERO_SENT=1)
+        return response['Mailing']
+
     def get_list_mailings(self, list_id, startdate, enddate=None):
         """
         startdate and enddate should be an Arrow object
