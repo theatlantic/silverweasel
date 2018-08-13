@@ -4,6 +4,7 @@ import logging
 
 from zeep import Client
 from zeep.transports import Transport
+from zeep.exceptions import Fault as SoapFault
 import arrow
 
 from silverweasel.sftp import SFTPClient
@@ -30,6 +31,11 @@ class SilverClient:
         self.username = username
         self.password = password
         self.timezone = timezone
+        self.server_errors = 0
+        # only permit 5 invalid Soap responses from the server.  This happens
+        # whenever there's a timeout, because Silverpop doesn't return valid
+        # Soap Fault documents.
+        self.max_errors = 5
         self.login()
 
     def parse_datetime(self, parseable):
@@ -50,19 +56,34 @@ class SilverClient:
         # keep it clean for debugging logs, no user/pass
         ckwargs = kwargs.copy() if method != 'Login' else '<redacted>'
         logger.debug('Calling SOAP function "%s" with %s', method, ckwargs)
-
         kwargs['_soapheaders'] = self.headers
-        response = getattr(self.client.service, method)(**kwargs)
-        if not response['SUCCESS']:
-            # handle expired session
-            if response['Fault']['detail']['error']['errorid'] == '145':
-                logger.warning('Restarting expired session')
-                self.login()
-                return self._call(method, **kwargs)
-            errmsg = "Error calling %s: %s" % (method, response)
-            logger.error(errmsg)
-            raise RuntimeError(errmsg)
-        return response
+
+        # this is gross, but Silverpop responds with an invalid Soap Fault
+        # document whenever the server timesout.  This causes an error in
+        # Zeep, which only handles valid Soap Fault docs.
+        try:
+            response = getattr(self.client.service, method)(**kwargs)
+        except SoapFault:
+            if self.server_errors == self.max_errors:
+                logger.error("Error in last attempt for %s", method)
+                raise
+            self.server_errors += 1
+            logger.warning('Silverpop server error, attempt %i',
+                           self.server_errors)
+            return self._call(method, **kwargs)
+
+        if response['SUCCESS']:
+            return response
+
+        # handle expired session
+        if response['Fault']['detail']['error']['errorid'] == '145':
+            logger.warning('Restarting expired session')
+            self.login()
+            return self._call(method, **kwargs)
+
+        errmsg = "Error calling %s: %s" % (method, response)
+        logger.error(errmsg)
+        raise RuntimeError(errmsg)
 
     def get_org_mailings(self, startdate, enddate=None):
         """
