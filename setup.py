@@ -12,5 +12,5 @@ setup(
     packages=find_packages(),
     package_data={'': ['data/*.xsd']},
     python_requires='>=3',
-    install_requires=["zeep==2.4.0","arrow==0.12.0","paramiko==2.4.1"]
+    install_requires=["zeep==2.4.0","arrow==0.12.0","paramiko==2.4.2"]
 )
