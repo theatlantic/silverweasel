@@ -12,6 +12,7 @@ from silverweasel.utils import parse_datetime
 
 logger = logging.getLogger(__name__)
 
+MAX_RETRIES = 15
 
 class FixedSliverPoopWSDL:
     def add(self, url, content):
@@ -35,7 +36,7 @@ class SilverClient:
         # only permit 5 invalid Soap responses from the server.  This happens
         # whenever there's a timeout, because Silverpop doesn't return valid
         # Soap Fault documents.
-        self.max_errors = 5
+        self.max_errors = MAX_RETRIES
         self.login()
 
     def parse_datetime(self, parseable):
