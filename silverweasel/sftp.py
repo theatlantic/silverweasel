@@ -5,6 +5,7 @@ from io import TextIOWrapper
 import paramiko
 
 logger = logging.getLogger(__name__)
+CONNECT_RETRIES = 15
 
 
 class SFTPClient:
@@ -22,14 +23,33 @@ class SFTPClient:
         self.disconnect()
 
     def connect(self):
-        logger.debug("Connecting to %s@%s", self.username, self.host)
-        transport = paramiko.Transport((self.host, 22))
-        transport.connect(username=self.username, password=self.password)
-        self.client = paramiko.SFTPClient.from_transport(transport)
-        # sometimes silverpop gives relative paths, sometimes it doesn't.
-        # For the cases where it doesn't, usually we're looking for files in
-        # the /download directory.  Thanks Silverpop!
-        self.client.chdir('/download')
+        for attempt in range(0, CONNECT_RETRIES):
+            try:
+                log_msg = "Attempt {} of {}: Connecting to {}@{}".format(
+                    attempt + 1, CONNECT_RETRIES, self.username, self.host
+                )
+                logger.debug(log_msg)
+                transport = paramiko.Transport((self.host, 22))
+                transport.connect(
+                    username=self.username, password=self.password)
+                self.client = paramiko.SFTPClient.from_transport(transport)
+                # sometimes silverpop gives relative paths, sometimes it
+                # doesn't. For the cases where it doesn't, usually we're
+                # looking for files in the /download directory.
+                # Thanks Silverpop!
+                self.client.chdir('/download')
+                return
+            except paramiko.ssh_exception.AuthenticationException as err:
+                logger.exception(err)
+                log_msg = "Attempt {} of {}: "\
+                          "Error connecting to {} with user name {}.".format(
+                                attempt + 1, CONNECT_RETRIES,
+                                self.username, self.host
+                           )
+                logger.warning(log_msg)
+                # raise the err beyond this method if we fail 15 times
+                if attempt == CONNECT_RETRIES - 1:
+                    raise err
 
     def disconnect(self):
         logger.debug("Disconnecting from %s", self.host)
@@ -116,3 +136,4 @@ class RemoteZipFile(RemoteFile):
         self.innerzip.close()
         self.zip.close()
         self.file.close()
+
