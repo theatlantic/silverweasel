@@ -136,4 +136,3 @@ class RemoteZipFile(RemoteFile):
         self.innerzip.close()
         self.zip.close()
         self.file.close()
-
