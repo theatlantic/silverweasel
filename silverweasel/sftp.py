@@ -10,7 +10,7 @@ MAX_RETRIES = 15
 
 class SFTPClient:
     def __init__(self, pod, username, password):
-        self.host = "transfer%s.ibmmarketingcloud.com" % str(pod)
+        self.host = "transfer-campaign-us-%s.goacoustic.com" % str(pod)
         self.username = username
         self.password = password
         self.client = None
