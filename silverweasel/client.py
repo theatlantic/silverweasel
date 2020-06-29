@@ -44,7 +44,8 @@ class SilverClient:
         return parse_datetime(parseable, self.timezone)
 
     def login(self):
-        wsdl = "http://api%s.ibmmarketingcloud.com/SoapApi?wsdl" % self.pod
+        wsdl = "https://api-campaign-us-%s.goacoustic.com/"\
+               "SoapApi?wsdl" % self.pod
         transport = Transport(cache=FixedSliverPoopWSDL())
         self.client = Client(wsdl, transport=transport)
         self.headers = None
